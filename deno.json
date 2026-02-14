@@ -1,0 +1,14 @@
+{
+  "tasks": {
+    "start": "deno run -A main.ts",
+    "dev": "deno run -A --watch main.ts"
+  },
+  "imports": {
+    "@modelcontextprotocol/sdk/server/mcp.js": "npm:@modelcontextprotocol/sdk@1.12.1/server/mcp.js",
+    "@modelcontextprotocol/sdk/server/stdio.js": "npm:@modelcontextprotocol/sdk@1.12.1/server/stdio.js",
+    "zod": "npm:zod@3.24.2"
+  },
+  "compilerOptions": {
+    "strict": true
+  }
+}
