@@ -51,14 +51,19 @@ export const statusTool = {
         "{{.Names}}\t{{.Status}}\t{{.RunningFor}}",
       ]),
       readPrdFromBareRepo(project_dir),
-      exec(["git", "log", "--oneline", "-10"], { cwd: project_dir }),
+      // Read commits from bare repo (where agents push), fallback to working dir
+      exec(["git", "log", "--oneline", "-10", "--all"], {
+        cwd: `${project_dir}/.ralph/repo.git`,
+      }).catch(() =>
+        exec(["git", "log", "--oneline", "-10"], { cwd: project_dir })
+      ),
     ]);
 
-    // Check for stop signal
+    // Check for stop signal (file must be non-empty, matching shell's -s check)
     let stopRequested = false;
     try {
-      await Deno.stat(`${project_dir}/.ralph/stop_requested`);
-      stopRequested = true;
+      const stat = await Deno.stat(`${project_dir}/.ralph/stop_requested`);
+      stopRequested = stat.size > 0;
     } catch {
       // File doesn't exist = not requested
     }
