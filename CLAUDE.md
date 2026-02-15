@@ -31,7 +31,8 @@ Each tool file exports a Zod `params` shape and an async `handler(args) → stri
 |------|------|-------------|
 | `ralph_launch` | write | Start parallel agents (background, returns immediately) |
 | `ralph_stop` | write | Graceful shutdown via stop.sh |
-| `ralph_status` | read | Container health + story board + recent commits |
+| `ralph_changes` | read | Delta since last check: new commits, story transitions, new logs, containers |
+| `ralph_status` | read | Container health + story board + recent commits (includes `latest_commit`) |
 | `ralph_logs` | read | Agent iteration log tails |
 | `ralph_prd_read` | read | Full PRD with stories grouped by status |
 | `ralph_prd_update` | write | Add/edit/remove stories, commits to bare repo |

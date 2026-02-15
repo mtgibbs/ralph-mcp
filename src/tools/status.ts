@@ -22,6 +22,7 @@ interface StoryStatus {
 
 interface StatusResult {
   project: string;
+  latest_commit: string;
   stop_requested: boolean;
   containers: ContainerInfo[];
   stories: StoryStatus;
@@ -40,8 +41,8 @@ export const statusTool = {
     const { project_dir } = args;
     const _ralphHome = getRalphHome();
 
-    // Run docker ps, prd read, and git log in parallel
-    const [dockerResult, prdResult, commitsResult] = await Promise.all([
+    // Run docker ps, prd read, git log, and HEAD resolve in parallel
+    const [dockerResult, prdResult, commitsResult, headResult] = await Promise.all([
       exec([
         "docker",
         "ps",
@@ -56,6 +57,11 @@ export const statusTool = {
         cwd: `${project_dir}/.ralph/repo.git`,
       }).catch(() =>
         exec(["git", "log", "--oneline", "-10"], { cwd: project_dir })
+      ),
+      exec(["git", "rev-parse", "HEAD"], {
+        cwd: `${project_dir}/.ralph/repo.git`,
+      }).catch(() =>
+        exec(["git", "rev-parse", "HEAD"], { cwd: project_dir })
       ),
     ]);
 
@@ -116,8 +122,13 @@ export const statusTool = {
         .filter((l) => l.length > 0)
       : [];
 
+    const latestCommit = headResult.success
+      ? headResult.stdout.trim()
+      : "unknown";
+
     const result: StatusResult = {
       project: project_dir,
+      latest_commit: latestCommit,
       stop_requested: stopRequested,
       containers,
       stories,

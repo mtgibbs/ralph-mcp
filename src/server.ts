@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
+  changesTool,
   launchTool,
   logsTool,
   prdReadTool,
@@ -36,6 +37,7 @@ export function createServer(): McpServer {
     version: "0.1.0",
   });
 
+  registerTool(server, changesTool);
   registerTool(server, launchTool);
   registerTool(server, stopTool);
   registerTool(server, statusTool);

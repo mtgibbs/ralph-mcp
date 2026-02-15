@@ -1,3 +1,4 @@
+export { changesTool } from "./changes.ts";
 export { launchTool } from "./launch.ts";
 export { stopTool } from "./stop.ts";
 export { statusTool } from "./status.ts";
