@@ -10,6 +10,7 @@ export const launchTool = {
     project_dir: z.string().describe("Absolute path to the project directory (must contain prd.json and be a git repo)"),
     agents: z.number().optional().describe("Number of builder agents (default: 2)"),
     researchers: z.number().optional().describe("Number of researcher agents with full internet access (default: 0)"),
+    verifiers: z.number().optional().describe("Number of verifier agents that independently run tests to gate story completion (default: 0)"),
     model: z.string().optional().describe("Claude model ID (default: claude-sonnet-4-5-20250929)"),
     memory: z.string().optional().describe("Per-container memory limit (default: 4g)"),
     cpus: z.number().optional().describe("Per-container CPU limit (default: 2)"),
@@ -21,6 +22,7 @@ export const launchTool = {
     project_dir: string;
     agents?: number;
     researchers?: number;
+    verifiers?: number;
     model?: string;
     memory?: string;
     cpus?: number;
@@ -48,6 +50,9 @@ export const launchTool = {
     }
     if (args.researchers !== undefined) {
       cmd.push("--researcher", String(args.researchers));
+    }
+    if (args.verifiers !== undefined) {
+      cmd.push("--verifier", String(args.verifiers));
     }
     if (args.model) {
       cmd.push("--model", args.model);
@@ -123,6 +128,7 @@ export const launchTool = {
         project_dir: args.project_dir,
         agents: args.agents ?? 2,
         researchers: args.researchers ?? 0,
+        verifiers: args.verifiers ?? 0,
         model: args.model ?? "claude-sonnet-4-5-20250929",
         containers: containers,
         note: "Orchestrator running in background. Use ralph_status to monitor progress.",

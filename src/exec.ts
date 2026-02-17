@@ -53,3 +53,33 @@ export function getRalphHome(): string {
   return Deno.env.get("RALPH_HOME") ??
     new URL("../../ralph", import.meta.url).pathname;
 }
+
+/**
+ * Resolve the ref containing the latest prd.json in a bare repo.
+ * Agents push to a working branch (e.g. ralph/string-utils), not main,
+ * so bare-repo HEAD (which points to main) is stale.
+ */
+export async function resolveLatestPrdRef(bareRepo: string): Promise<string> {
+  const result = await exec(
+    ["git", "log", "--all", "-1", "--format=%H", "--", "prd.json"],
+    { cwd: bareRepo },
+  );
+  if (result.success && result.stdout.trim()) {
+    return result.stdout.trim();
+  }
+  return "HEAD";
+}
+
+/**
+ * Resolve the latest commit across all branches in a bare repo.
+ */
+export async function resolveLatestCommit(bareRepo: string): Promise<string> {
+  const result = await exec(
+    ["git", "log", "--all", "-1", "--format=%H"],
+    { cwd: bareRepo },
+  );
+  if (result.success && result.stdout.trim()) {
+    return result.stdout.trim();
+  }
+  return "unknown";
+}

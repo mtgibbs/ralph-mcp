@@ -16,6 +16,10 @@ export const prdUpdateTool = {
       acceptanceCriteria: z.array(z.string()).optional(),
       priority: z.number().optional(),
       notes: z.string().optional(),
+      verified: z.boolean().optional(),
+      verified_by: z.string().nullable().optional(),
+      verified_at: z.string().nullable().optional(),
+      verification_notes: z.string().nullable().optional(),
     }).describe("Story data. For add_story: full story object. For edit_story: id + fields to update. For remove_story: just id."),
   },
 
@@ -89,6 +93,10 @@ export const prdUpdateTool = {
           notes: story.notes ?? "",
           claimed_by: null,
           claimed_at: null,
+          verified: false,
+          verified_by: null,
+          verified_at: null,
+          verification_notes: null,
         };
         prd.userStories.push(newStory);
         commitMessage = `[mcp] Add story ${story.id}: ${story.title}`;
@@ -106,6 +114,10 @@ export const prdUpdateTool = {
         if (story.acceptanceCriteria !== undefined) existing.acceptanceCriteria = story.acceptanceCriteria;
         if (story.priority !== undefined) existing.priority = story.priority;
         if (story.notes !== undefined) existing.notes = story.notes;
+        if (story.verified !== undefined) existing.verified = story.verified;
+        if (story.verified_by !== undefined) existing.verified_by = story.verified_by;
+        if (story.verified_at !== undefined) existing.verified_at = story.verified_at;
+        if (story.verification_notes !== undefined) existing.verification_notes = story.verification_notes;
         prd.userStories[idx] = existing;
 
         const fields = Object.keys(story).filter((k) => k !== "id");

@@ -9,6 +9,10 @@ export interface UserStory {
   notes?: string;
   claimed_by?: string | null;
   claimed_at?: string | null;
+  verified?: boolean;
+  verified_by?: string | null;
+  verified_at?: string | null;
+  verification_notes?: string | null;
 }
 
 /** The full PRD document */

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { exec, getRalphHome } from "../exec.ts";
+import { exec, getRalphHome, resolveLatestCommit, resolveLatestPrdRef } from "../exec.ts";
 import type { PRD } from "../types.ts";
 
 interface ContainerInfo {
@@ -15,6 +15,12 @@ interface StoryStatus {
     title: string;
     claimed_by: string;
     claimed_at: string;
+  }[];
+  verifying: {
+    id: string;
+    title: string;
+    verified_by: string | null;
+    verification_notes: string | null;
   }[];
   done: { id: string; title: string }[];
   progress: string;
@@ -41,8 +47,10 @@ export const statusTool = {
     const { project_dir } = args;
     const _ralphHome = getRalphHome();
 
-    // Run docker ps, prd read, git log, and HEAD resolve in parallel
-    const [dockerResult, prdResult, commitsResult, headResult] = await Promise.all([
+    const bareRepo = `${project_dir}/.ralph/repo.git`;
+
+    // Run docker ps, prd read, git log, and latest commit resolve in parallel
+    const [dockerResult, prdResult, commitsResult, latestCommit] = await Promise.all([
       exec([
         "docker",
         "ps",
@@ -54,15 +62,11 @@ export const statusTool = {
       readPrdFromBareRepo(project_dir),
       // Read commits from bare repo (where agents push), fallback to working dir
       exec(["git", "log", "--oneline", "-10", "--all"], {
-        cwd: `${project_dir}/.ralph/repo.git`,
+        cwd: bareRepo,
       }).catch(() =>
         exec(["git", "log", "--oneline", "-10"], { cwd: project_dir })
       ),
-      exec(["git", "rev-parse", "HEAD"], {
-        cwd: `${project_dir}/.ralph/repo.git`,
-      }).catch(() =>
-        exec(["git", "rev-parse", "HEAD"], { cwd: project_dir })
-      ),
+      resolveLatestCommit(bareRepo).catch(() => "unknown"),
     ]);
 
     // Check for stop signal (file must be non-empty, matching shell's -s check)
@@ -88,14 +92,27 @@ export const statusTool = {
     const stories: StoryStatus = {
       available: [],
       claimed: [],
+      verifying: [],
       done: [],
       progress: "unknown",
     };
 
     if (prdResult) {
+      // Check if any story has the verified field (verifiers are in use)
+      const hasVerifiers = prdResult.userStories.some((s) => s.verified !== undefined);
+
       for (const story of prdResult.userStories) {
-        if (story.passes) {
+        if (story.passes && (story.verified || !hasVerifiers)) {
+          // Done: verified, or passes-only when no verifiers in use
           stories.done.push({ id: story.id, title: story.title });
+        } else if (story.passes && hasVerifiers && !story.verified) {
+          // Awaiting verification (only when verifiers are in use)
+          stories.verifying.push({
+            id: story.id,
+            title: story.title,
+            verified_by: story.verified_by ?? null,
+            verification_notes: story.verification_notes ?? null,
+          });
         } else if (story.claimed_by) {
           stories.claimed.push({
             id: story.id,
@@ -111,8 +128,16 @@ export const statusTool = {
           });
         }
       }
-      stories.progress =
-        `${stories.done.length}/${prdResult.userStories.length} stories complete`;
+
+      const builtCount = prdResult.userStories.filter((s) => s.passes).length;
+      const total = prdResult.userStories.length;
+
+      if (hasVerifiers) {
+        const verifiedCount = prdResult.userStories.filter((s) => s.passes && s.verified).length;
+        stories.progress = `${verifiedCount}/${total} verified, ${builtCount}/${total} built`;
+      } else {
+        stories.progress = `${builtCount}/${total} stories complete`;
+      }
     }
 
     const commits = commitsResult.success
@@ -121,10 +146,6 @@ export const statusTool = {
         .split("\n")
         .filter((l) => l.length > 0)
       : [];
-
-    const latestCommit = headResult.success
-      ? headResult.stdout.trim()
-      : "unknown";
 
     const result: StatusResult = {
       project: project_dir,
@@ -139,13 +160,16 @@ export const statusTool = {
   },
 };
 
-/** Read prd.json from the bare repo if it exists, fallback to working dir */
+/** Read prd.json from the bare repo if it exists, fallback to working dir.
+ *  Uses resolveLatestPrdRef to find the latest prd.json across ALL branches,
+ *  since agents push to a working branch (not main) and bare-repo HEAD is stale. */
 async function readPrdFromBareRepo(projectDir: string): Promise<PRD | null> {
   const bareRepo = `${projectDir}/.ralph/repo.git`;
   try {
     await Deno.stat(bareRepo);
+    const ref = await resolveLatestPrdRef(bareRepo);
     const result = await exec(
-      ["git", "show", "HEAD:prd.json"],
+      ["git", "show", `${ref}:prd.json`],
       { cwd: bareRepo },
     );
     if (result.success) {

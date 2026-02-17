@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { exec } from "../exec.ts";
+import { exec, resolveLatestCommit, resolveLatestPrdRef } from "../exec.ts";
 import type { PRD, UserStory } from "../types.ts";
 
 interface ContainerInfo {
@@ -30,7 +30,10 @@ interface ChangesResult {
   containers: { current: ContainerInfo[]; likely_new: string[] };
 }
 
-function storyStatus(s: UserStory): string {
+function storyStatus(s: UserStory, hasVerifiers: boolean): string {
+  if (s.passes && s.verified) return "verified";
+  if (s.passes && hasVerifiers && s.verified_by) return `verifying by ${s.verified_by}`;
+  if (s.passes && hasVerifiers) return "awaiting verification";
   if (s.passes) return "done";
   if (s.claimed_by) return `claimed by ${s.claimed_by}`;
   return "available";
@@ -49,11 +52,13 @@ function diffStories(
     }
   }
 
+  const hasVerifiers = newPrd.userStories.some((s) => s.verified !== undefined);
+
   const transitions: StoryTransition[] = [];
   for (const s of newPrd.userStories) {
     const prev = oldMap.get(s.id);
-    const prevStatus = prev ? storyStatus(prev) : "new";
-    const currStatus = storyStatus(s);
+    const prevStatus = prev ? storyStatus(prev, hasVerifiers) : "new";
+    const currStatus = storyStatus(s, hasVerifiers);
 
     if (prevStatus !== currStatus) {
       transitions.push({
@@ -114,7 +119,7 @@ export const changesTool = {
     let sinceCommit = args.since_commit;
     if (!sinceCommit) {
       const initResult = await exec(
-        ["git", "rev-list", "--max-parents=0", "HEAD"],
+        ["git", "rev-list", "--all", "--max-parents=0"],
         { cwd: bareRepo },
       );
       sinceCommit = initResult.success
@@ -122,13 +127,8 @@ export const changesTool = {
         : "HEAD";
     }
 
-    // Resolve latest_commit
-    const headResult = await exec(["git", "rev-parse", "HEAD"], {
-      cwd: bareRepo,
-    });
-    const latestCommit = headResult.success
-      ? headResult.stdout.trim()
-      : "unknown";
+    // Resolve latest_commit across all branches (agents push to working branch, not main)
+    const latestCommit = await resolveLatestCommit(bareRepo);
 
     // Get the timestamp of since_commit for log file filtering
     const sinceTimestampResult = await exec(
@@ -151,8 +151,10 @@ export const changesTool = {
         // PRD at since_commit
         readPrdAtCommit(bareRepo, sinceCommit),
 
-        // Current PRD
-        readPrdAtCommit(bareRepo, "HEAD"),
+        // Current PRD (from working branch, not HEAD which points to main)
+        resolveLatestPrdRef(bareRepo).then((ref) =>
+          readPrdAtCommit(bareRepo, ref)
+        ),
 
         // Docker containers
         exec([
